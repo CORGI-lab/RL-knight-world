@@ -7,7 +7,14 @@
 #     + Punishment for dying. (Eg attack dragon without sword)
 # Google methods for doing all this
 
+# Structure:
+# One state is the entire world.
+# The world contains actors, items, and locations, which are all objects.
+# Only the agent can take actions. Actions are strings.
+#  Most actions are deterministic.
+
 from copy import deepcopy
+from random import random
 
 
 def save(obj):
@@ -114,18 +121,32 @@ def A(s):
 
 
 def R(s, a):
-    pass
+    if not s.agent.alive:
+        return -50
+    if a == "enter" and s.agent.location == s.locations.kingdom and \
+            s.locations.victim in s.agent.inventory:
+        return 1000
+    return 0
 
 
 def T(s, a):
     s = deepcopy(s)
     if a == "kill wizard":
-        wizard.alive = False
+        if random() > .5:
+            s.wizard.alive = False
+        else:
+            s.agent.alive = False
     if a == "kill king":
-        king.alive = False
+        if random() > .7:
+            king.alive = False
+        else:
+            s.agent.alive = False
     if a == "leave":
-        s.agent.location = outside_world
-    
+        s.agent.location = s.locations.outside_world
+    if a == "enter":
+        assert s.agent.is_at_door()
+        s.agent.location = s.get_location_by_coords(s.agent.location)
+    return s
 
 
 world = World()
