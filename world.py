@@ -45,9 +45,13 @@ class Actor(object):
         self.name = name
         self.location = location
         self.inventory = inventory or []
+        self.alive = True
 
     def __repr__(self):
         return f"Actor {self.name}"
+
+    def __hash__(self):
+        return hash((self.name, self.inventory))
 
 
 class Item(object):
@@ -59,7 +63,7 @@ class Item(object):
         self.owner = owner or self.default_owner
 
     def __hash__(self):
-        return hash((self.name, self.purpose, self.owner.name))
+        return hash((self.name, self.purpose))
 
     def __repr__(self):
         return f"Item {self.name}"
@@ -79,12 +83,49 @@ class Location(object):
         return f"Location {self.name}"
 
 
+def A(s):
+    agent = None
+    if agent.location == "kingdom":
+        actions = ["leave"]
+        if not king.been_asked:
+            actions.append("ask king")
+            actions.append("demand king")
+        if king.alive:
+            actions.append("kill king")
+    elif agent.location == "swamp":
+        actions = ["leave", "make dinner", "enjoy evening"]
+        if "scroll" not in agent.inventory:
+            actions.append("pick up scroll")
+    elif agent.location == "open world":
+        actions = ["left", "right", "up", "down"]
+        if agent.coords in [l.coords for l in locations]:
+            actions.append("enter")
+    elif agent.location == "cave":
+        return ["kill dragon", "talk to dragon", ]
+    elif agent.location == "armory":
+        actions = ["leave"]
+        if not wizard.been_requested_already:
+            actions.append("request enchantment")
+        if wizard.alive:
+            actions.append("kill wizard")
+    else:
+        raise Exception(f"Agent in unknown location: {agent.location}")
+    return actions
+
+
 def R(s, a):
     pass
 
 
 def T(s, a):
-    pass
+    s = deepcopy(s)
+    if a == "kill wizard":
+        wizard.alive = False
+    if a == "kill king":
+        king.alive = False
+    if a == "leave":
+        s.agent.location = outside_world
+    
 
 
 world = World()
