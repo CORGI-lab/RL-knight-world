@@ -1,11 +1,3 @@
-# TODO: Define all of the transitions.
-# + Given a state, return all the possible actions
-# + Some actions: up, down, left, right. Enter & exit locs
-#     + Actor interactions
-#     + Item interactions
-#     + Reward for bringing princess back to castle
-#     + Punishment for dying. (Eg attack dragon without sword)
-# Google methods for doing all this
 # Structure:
 # One state is the entire world.
 # The world contains actors, items, and locs, which are all objects.
@@ -129,12 +121,15 @@ def A(s):
             acts.append('enter')
         return acts
     if name == 'cave':
-        return ['kill dragon', 'talk to dragon', ]
-    if name == 'armory':
+        if s.actors['dragon'].alive:
+            return ['kill dragon', 'talk to dragon', ]
+        else:
+            return ['leave']
+    if name == 'forge':
         acts = ['leave']
         wizard = s.actors['wizard']
         if 'enchantment' in wizard.items:
-            acts.append('request enchantment')
+            acts.extend(('ask wizard', 'demand wizard'))
         if wizard.alive:
             acts.append('kill wizard')
         return acts
@@ -182,16 +177,23 @@ def RT(s, a):
         assert 'sword' in king.items
         if random.random() > 0.1:
             sword = king.items.pop('sword')
-            s.agent['sword'] = sword
+            s.agent.items['sword'] = sword
             sword.owner = s.agent
         return -1, False
     if a == 'ask wizard' or a == 'demand wizard':
-        wizard = s.actors['king']
+        wizard = s.actors['wizard']
         assert 'enchantment' in wizard.items
         if random.random() > 0.1:
             enchantment = wizard.items.pop('enchantment')
-            s.agent['enchantment'] = enchantment
+            s.agent.items['enchantment'] = enchantment
             enchantment.owner = s.agent
+        return -1, False
+    if a == 'kill dragon':
+        if 'enchantment' in s.agent.items and 'sword' in s.agent.items:
+            s.actors['dragon'].alive = False
+            return 50, True
+        return -50, True
+    if a == 'talk to dragon':
         return -1, False
     raise Exception("Unknown action", a)
 
@@ -212,7 +214,6 @@ def make_initial_state():
 
 
 # def Q_learning(s0, A, RT, is_terminal, n=100, 𝛼=.2, ε=.05, ɣ=.95):
-s0 = make_initial_state()
 n = 100
 𝛼 = .2
 ε = .05
@@ -220,7 +221,7 @@ n = 100
 Q = defaultdict(int)
 S = set()
 for _ in range(n):
-    s = s0
+    s = make_initial_state()
     h = hash(s)
     while True:
         print("In state", s.agent.coords, s.agent.loc)
