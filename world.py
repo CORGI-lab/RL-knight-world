@@ -12,6 +12,31 @@
 # Only the agent can take actions. Actions are strings.
 #  Most actions are deterministic.
 from random import random
+from collections import defaultdict
+from time import sleep
+
+
+def Q_learning(s0, A, RT, is_terminal, draw, n=100, 𝛼=.2, ε=.05, ɣ=.95):
+    Q = defaultdict(int)
+    S = set()
+    for _ in range(n):
+        s = s0
+        while True:
+            draw(s)
+            sleep(.1)
+            S.add(s)
+            if is_terminal(s):
+                break
+            a = (random.choice(A)
+                 if random.random() < ε
+                 else max(A, key=lambda a: Q[s, a]))
+            r, s2 = RT(s, a)
+            max_s2 = max(Q[s2, a] for a in A)
+            Q[s, a] += 𝛼 * (r + ɣ * max_s2 - Q[s, a])
+            s = s2
+    π = {s: max(A, lambda a: Q[s, a])
+         for s in S}
+    return π
 
 
 class World(object):
@@ -66,8 +91,8 @@ class Item(object):
         return f'Item {self.name}'
 
 
-class loc(object):
-    def __init__(self, name, coords=(0, 0), actors=None):
+class Loc(object):
+    def __init__(self, name, coords, actors=None):
         self.name = name
         self.coords = coords
         self.actors = actors or []
@@ -140,8 +165,7 @@ def T(s, a):
         r, c = s.agent.coords
         dr, dc = {'up': (-1, 0), 'down': (1, 0),
                   'left': (0, -1), 'right': (0, 1)}[a]
-        s.agent.coords = (min(0, max(r + dr, s.rows)),
-                          min(0, max(c + dc, s.cols)))
+        s.agent.coords = (r + dr, c + dc)
     if a == 'kill wizard':
         if random() > .5:
             s.actors['wizard'].alive = False
@@ -164,26 +188,14 @@ def T(s, a):
     return s
 
 
-# world = World()
-# Item.default_owner = world
-# knight, king, dragon, wizard = \
-#     Actor('Knight'), Actor('King'), Actor('Dragon'), Actor('Wizard')
-# actors = [knight, king, dragon, wizard]
-# items = [Item('Sword', owner=knight), Item('Enchantment', owner=wizard)]
-# locs = [loc('Swamp', ), loc('Castle'),
-#              loc('Cave'), loc('Forge')]
-# world = World(actors=actors, items=items, locs=locs)
-# world2 = deepcopy(world)
-# world2.actors[0].name = 'Flight'
-
-
-def p(s):
-    print(s, ':', eval(s))
-
-
-p('world.actors')
-p('world2.actors')
-p('world.items[0].owner')
-p('world2.items[0].owner')
-p('items[0]')
-p('items[0].owner')
+def make_intial_state():
+    world = World()
+    Item.default_owner = world
+    knight, king, dragon, wizard = \
+        Actor('Knight'), Actor('King'), Actor('Dragon'), Actor('Wizard')
+    king.been_asked = False
+    wizard.been_asked = False
+    actors = [knight, king, dragon, wizard]
+    items = [Item('Sword', owner=knight), Item('Enchantment', owner=wizard)]
+    locs = [Loc('Swamp', ), Loc('Castle'), Loc('Cave'), Loc('Forge')]
+    world = World(actors=actors, items=items, locs=locs)
