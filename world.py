@@ -106,34 +106,45 @@ def A(s):
     if name == 'kingdom':
         acts = ['leave']
         king = s.actors['king']
-        if 'sword' in king.items:
-            acts.append('ask king for sword')
-            acts.append('demand king for sword')
+        if 'slip' in king.items:
+            acts.append('ask king for slip')
+            acts.append('demand king for slip')
         if king.alive:
             acts.append('kill king')
-        pleeb1 = s.actors['pleeb1']
-        if pleeb1.alive:
-            acts.append('kill pleeb')
-            acts.append('chat with pleeb')
+        pleb1 = s.actors['pleb1']
+        if pleb1.alive:
+            acts.append('kill pleb1')
+            acts.append('chat with pleb1')
         return acts
 
     if name == 'cave':
-        if s.actors['dragon'].alive:
-            return ['kill dragon', 'talk to dragon', ]
-        else:
-            return ['leave']
+        return ['kill dragon', 'talk to dragon', 'leave']
 
     if name == 'forge':
         acts = ['leave']
+        blacksmith = s.actors['blacksmith']
+        if blacksmith.alive:
+            acts.extend(('kill blacksmith', 'ask for sword'))
+            if 'slip' in s.agent.items:
+                acts.append('give blacksmith slip from king')
+        if 'sword' not in s.agent.items:
+            acts.append('steal sword')
+        return acts
+
+    if name == 'tower':
+        acts = ['leave']
         wizard = s.actors['wizard']
-        if 'enchantment' in wizard.items:
-            acts.extend(('ask wizard', 'demand wizard'))
+        if 'amulet' in wizard.items:
+            acts.append('steal amulet')
+            if wizard.alive:
+                acts.extend(('ask wizard for amulet',
+                            'demand wizard for amulet'))
         if wizard.alive:
             acts.append('kill wizard')
         return acts
 
-    if name == 'tower':
-        pass
+    if name == 'tavern':
+        return ['leave', 'eat pizza', 'play pacman']
 
     if name == 'outside':
         acts = ['wait']
@@ -153,26 +164,111 @@ def A(s):
     raise Exception(f'Agent in unknown loc: {s.agent.loc}')
 
 
+def transfer(item_name, old, new):
+    item = old.items.pop(item_name)
+    new.items[item_name] = item
+    item.owner = new
+
+
 def RT(s, a):
-    "Returns reward, is_terminal"
+    'Returns reward, is_terminal'
     name = s.agent.loc.name
 
+    # some actions are location-independent:
+
+    if a == 'leave':
+        s.agent.loc = s.locs['outside']
+        return -1, False
+
+    if a == 'enter':
+        s.agent.loc = s.coords_to_loc[s.agent.coords]
+        return -1, False
+
+    # most actions depend on location:
+
     if name == 'swamp':
-        pass
+        if a == 'make dinner':
+            Item('dinner', s.agent)
+            return -1, False
+        if a == 'enjoy evening':
+            # does nothing
+            return -1, False
+        if a == 'pick up scroll':
+            transfer('scroll', s.locs['swamp'], s.agent)
+            return -1, False
 
     if name == 'kingdom':
-        pass
+        king = s.actors['king']
+        if a == 'ask king for slip' or a == 'demand king for slip':
+            if random.random() > 0.1:
+                transfer('slip', king, s.agent)
+            return -1, False
+        if a == 'kill king':
+            items = s.agent.items
+            if 'sword' in items and 'amulet' in items:
+                king.alive = False
+                return -1, False
+            if 'sword' in items and random.random() < 0.8:
+                king.alive = False
+                return -1, False
+            return -100, True  # you die
+        if a == 'chat with pleb1':
+            return -1, False
+        if a == 'kill pleb1':
+            pleb1 = s.actors['pleb1']
+            pleb1.alive = False
+            return -1, False
 
     if name == 'cave':
-        pass
+        if a == 'kill dragon':
+            items = s.agent.items
+            dragon = s.actors['dragon']
+            if 'sword' in items and 'amulet' in items:
+                dragon.alive = False
+                return 1000, True
+            if 'sword' in items and random.random() < 0.1:
+                dragon.alive = False
+                return 1000, True
+            return -100, True  # you die
+        if a == 'talk to dragon':
+            return -100, True  # you die
 
     if name == 'forge':
-        pass
+        blacksmith = s.actors['blacksmith']
+        if a == 'give blacksmith slip from king':
+            transfer('slip', s.agent, blacksmith)
+            return -1, False
+        if a == 'kill blacksmith':
+            blacksmith.alive = False
+            return -1, False
+        if a == 'steal sword':
+            # can only steal sword if you kill the blacksmith
+            if not blacksmith.alive:
+                transfer('sword', blacksmith, s.agent)
+            return -1, False
+        if a == 'ask for sword':  # yay!
+            if 'slip' in blacksmith.items:
+                transfer('sword', blacksmith, s.agent)
+            return -1, False
 
     if name == 'tower':
-        pass
+        # wizard is less tough, can be stolen from without murder
+        wizard = s.actors['wizard']
+        if a in ['ask wizard for amulet',
+                 'demand wizard for amulet',
+                 'steal amulet']:
+            transfer('amulet', wizard, s.agent)
+            return -1, False
+        if a == 'kill wizard':
+            wizard.alive = False
+            return -1, False
+
+    if name == 'tavern':
+        return -1, False  # nothing matters
 
     if name == 'outside':
+        if a == 'wait':
+            return -1, False
         if a in ['up', 'down', 'left', 'right']:
             r, c = s.agent.coords
             dr, dc = {'up': (-1, 0), 'down': (1, 0),
@@ -180,115 +276,98 @@ def RT(s, a):
             s.agent.coords = (r + dr, c + dc)
             return -1, False
 
-    raise Exception(f'Agent in unknown loc: {s.agent.loc}')
-
-    if a == 'make dinner':
-        Item('dinner', s.agent)
-        return -1, False
-    if a == 'enjoy evening':
-        return -1, False
-    if a == 'kill wizard':
-        if random.random() > .5:
-            s.actors['wizard'].alive = False
-            return -40, True
-        s.agent.alive = False
-        return -50, True
-    if a == 'kill king':
-        if random.random() > .7:
-            s.actors['king'].alive = False
-            return -40, True
-        s.agent.alive = False
-        return -50, True
-    if a == 'pick up scroll':
-        scroll = s.locs['swamp'].items.pop('scroll')
-        s.agent.items['scroll'] = scroll
-        scroll.owner = s.agent
-        return -1, False
-    if a == 'leave':
-        s.agent.loc = s.locs['outside']
-        return -1, False
-    if a == 'enter':
-        s.agent.loc = s.coords_to_loc[s.agent.coords]
-        return -1, False
-    if a == 'ask king' or a == 'demand king':
-        king = s.actors['king']
-        assert 'sword' in king.items
-        if random.random() > 0.1:
-            sword = king.items.pop('sword')
-            s.agent.items['sword'] = sword
-            sword.owner = s.agent
-        return -1, False
-    if a == 'ask wizard' or a == 'demand wizard':
-        wizard = s.actors['wizard']
-        assert 'enchantment' in wizard.items
-        if random.random() > 0.1:
-            enchantment = wizard.items.pop('enchantment')
-            s.agent.items['enchantment'] = enchantment
-            enchantment.owner = s.agent
-        return -1, False
-    if a == 'kill dragon':
-        print(f'Attempting to kill dragon with items {s.agent.items.keys()}.')
-        if 'enchantment' in s.agent.items and 'sword' in s.agent.items:
-            s.actors['dragon'].alive = False
-            return 50, True
-        return -50, True
-    if a == 'talk to dragon':
-        return -1, False
-    raise Exception('Unknown action', a)
+    raise Exception(f'Invalid action {a} in state {s}')
 
 
 def make_initial_state():
-    locs = swamp, kingdom, cave, forge, outside = (
-        Loc('swamp', (0, 0)), Loc('kingdom', (2, 3)), Loc('cave', (8, 1)),
-        Loc('forge', (5, 5)), Loc('outside', None))
-    actors = knight, king, dragon, wizard = (
-        Actor('knight', cave), Actor('king', kingdom),
-        Actor('dragon', cave), Actor('wizard', forge))
-    items = [Item('sword', owner=king), Item('enchantment', owner=wizard),
-             Item('scroll', owner=swamp)]
+    locs = swamp, kingdom, cave, forge, tower, tavern, outside = \
+        [Loc(name, coords) for name, coords in [
+            ['swamp', (0, 0)],
+            ['kingdom', (2, 3)],
+            ['cave', (8, 1)],
+            ['forge', (5, 5)],
+            ['tower', (1, 2)],
+            ['tavern', (1, 1)],
+            ['outside', None]]]
+    actors = king, _, __, blacksmith, wizard = \
+        [Actor(name, loc) for name, loc in [
+            ['king', kingdom],
+            ['pleb1', kingdom],
+            ['dragon', cave],
+            ['blacksmith', forge],
+            ['wizard', tower],
+        ]]
+    items = \
+        [Item(name, owner=owner) for name, owner in [
+            ['scroll', swamp],
+            ['slip', king],
+            ['sword', blacksmith],
+            ['amulet', wizard]]]
     agent = Agent('Alice', swamp, None, swamp.coords)
     world = World(actors, items, locs, agent)
     Item.default_owner = world
     return world
 
-
 # def Q_learning(s0, A, RT, is_terminal, n=100, 𝛼=.2, ε=.05, ɣ=.95):
-n = 200
-𝛼 = .2
-ε = .05
-ɣ = .95
-Q = defaultdict(int)
-S = set()
-i = 0
-for _ in range(n):
-    s = make_initial_state()
-    h = hash(s)
+
+
+def Q_learning():
+    n = 200
+    𝛼 = .2
+    ε = .05
+    ɣ = .95
+    Q = defaultdict(int)
+    S = set()
+    i = 0
+    for _ in range(n):
+        s = make_initial_state()
+        h = hash(s)
+        while True:
+            i += 1
+            if i % 100 == 0:
+                print(i)
+                print('In state', s.agent.coords, s.agent.loc)
+            sleep(sleep_time)
+            S.add(h)
+            a = (random.choice(A(s))
+                 if random.random() < ε
+                 else max(A(s), key=lambda a: Q[h, a]))
+            if i % 100 == 0:
+                print('Taking action', a)
+            sleep(sleep_time)
+            r, is_terminal = RT(s, a)
+            if i % 100 == 0:
+                print('Received reward', r)
+            sleep(sleep_time)
+            h2 = hash(s)
+            max_s2 = max(Q[h2, a] for a in A(s))
+            Q[h, a] += 𝛼 * (r + ɣ * max_s2 - Q[h, a])
+            h = h2
+            if is_terminal:
+                break
+            if i % 100 == 0:
+                print()
+
+    def π(s):
+        return max(A(s), lambda a: Q[s, a])
+    return π
+
+
+s = make_initial_state()
+is_terminal = False
+while not is_terminal:
+    print("In state", s)
+    actions = A(s)
     while True:
-        i += 1
-        if i % 100 == 0:
-            print(i)
-            print('In state', s.agent.coords, s.agent.loc)
-        sleep(sleep_time)
-        S.add(h)
-        a = (random.choice(A(s))
-             if random.random() < ε
-             else max(A(s), key=lambda a: Q[h, a]))
-        if i % 100 == 0:
-            print('Taking action', a)
-        sleep(sleep_time)
-        r, is_terminal = RT(s, a)
-        if i % 100 == 0:
-            print('Received reward', r)
-        sleep(sleep_time)
-        h2 = hash(s)
-        max_s2 = max(Q[h2, a] for a in A(s))
-        Q[h, a] += 𝛼 * (r + ɣ * max_s2 - Q[h, a])
-        h = h2
-        if is_terminal:
+        print("Choices:")
+        for i, a in enumerate(actions):
+            print(i, ':', a)
+        choice = input("Choose action: ")
+        if choice.isdigit() and 0 <= int(choice) < len(actions):
             break
-        if i % 100 == 0:
-            print()
-
-
-def π(s):
-    return max(A(s), lambda a: Q[s, a])
+        if choice == 'e':  # for execute
+            code = input("Enter code: ")
+            exec(code)
+    print("Taking action:", actions[int(choice)])
+    reward, is_terminal = RT(s, actions[int(choice)])
+    print("Received reward", reward)
