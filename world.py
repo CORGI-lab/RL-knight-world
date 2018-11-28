@@ -94,22 +94,49 @@ class Agent(Actor):
 
 def A(s):
     name = s.agent.loc.name
-    if name == 'castle':
-        acts = ['leave']
-        king = s.actors['king']
-        if 'sword' in king.items:
-            acts.append('ask king')
-            acts.append('demand king')
-        if king.alive:
-            acts.append('kill king')
-        return acts
+
     if name == 'swamp':
-        acts = ['leave', 'make dinner', 'enjoy evening']
+        acts = ['leave', 'enjoy evening']
+        if 'dinner' not in s.agent.items:
+            acts.append('make dinner')
         if 'scroll' not in s.agent.items:
             acts.append('pick up scroll')
         return acts
-    if name == 'outside_world':
-        acts = []
+
+    if name == 'kingdom':
+        acts = ['leave']
+        king = s.actors['king']
+        if 'sword' in king.items:
+            acts.append('ask king for sword')
+            acts.append('demand king for sword')
+        if king.alive:
+            acts.append('kill king')
+        pleeb1 = s.actors['pleeb1']
+        if pleeb1.alive:
+            acts.append('kill pleeb')
+            acts.append('chat with pleeb')
+        return acts
+
+    if name == 'cave':
+        if s.actors['dragon'].alive:
+            return ['kill dragon', 'talk to dragon', ]
+        else:
+            return ['leave']
+
+    if name == 'forge':
+        acts = ['leave']
+        wizard = s.actors['wizard']
+        if 'enchantment' in wizard.items:
+            acts.extend(('ask wizard', 'demand wizard'))
+        if wizard.alive:
+            acts.append('kill wizard')
+        return acts
+
+    if name == 'tower':
+        pass
+
+    if name == 'outside':
+        acts = ['wait']
         r, c = s.agent.coords
         if r > 0:
             acts.append('up')
@@ -122,32 +149,41 @@ def A(s):
         if (r, c) in s.coords_to_loc:
             acts.append('enter')
         return acts
-    if name == 'cave':
-        if s.actors['dragon'].alive:
-            return ['kill dragon', 'talk to dragon', ]
-        else:
-            return ['leave']
-    if name == 'forge':
-        acts = ['leave']
-        wizard = s.actors['wizard']
-        if 'enchantment' in wizard.items:
-            acts.extend(('ask wizard', 'demand wizard'))
-        if wizard.alive:
-            acts.append('kill wizard')
-        return acts
+
     raise Exception(f'Agent in unknown loc: {s.agent.loc}')
 
 
 def RT(s, a):
-    # Returns reward, is_terminal
-    if a in ['up', 'down', 'left', 'right']:
-        r, c = s.agent.coords
-        dr, dc = {'up': (-1, 0), 'down': (1, 0),
-                  'left': (0, -1), 'right': (0, 1)}[a]
-        s.agent.coords = (r + dr, c + dc)
-        return -1, False
+    "Returns reward, is_terminal"
+    name = s.agent.loc.name
+
+    if name == 'swamp':
+        pass
+
+    if name == 'kingdom':
+        pass
+
+    if name == 'cave':
+        pass
+
+    if name == 'forge':
+        pass
+
+    if name == 'tower':
+        pass
+
+    if name == 'outside':
+        if a in ['up', 'down', 'left', 'right']:
+            r, c = s.agent.coords
+            dr, dc = {'up': (-1, 0), 'down': (1, 0),
+                      'left': (0, -1), 'right': (0, 1)}[a]
+            s.agent.coords = (r + dr, c + dc)
+            return -1, False
+
+    raise Exception(f'Agent in unknown loc: {s.agent.loc}')
+
     if a == 'make dinner':
-        Item("dinner", s.agent)
+        Item('dinner', s.agent)
         return -1, False
     if a == 'enjoy evening':
         return -1, False
@@ -169,7 +205,7 @@ def RT(s, a):
         scroll.owner = s.agent
         return -1, False
     if a == 'leave':
-        s.agent.loc = s.locs['outside_world']
+        s.agent.loc = s.locs['outside']
         return -1, False
     if a == 'enter':
         s.agent.loc = s.coords_to_loc[s.agent.coords]
@@ -191,26 +227,26 @@ def RT(s, a):
             enchantment.owner = s.agent
         return -1, False
     if a == 'kill dragon':
-        print(f"Attempting to kill dragon with items {s.agent.items.keys()}.")
+        print(f'Attempting to kill dragon with items {s.agent.items.keys()}.')
         if 'enchantment' in s.agent.items and 'sword' in s.agent.items:
             s.actors['dragon'].alive = False
             return 50, True
         return -50, True
     if a == 'talk to dragon':
         return -1, False
-    raise Exception("Unknown action", a)
+    raise Exception('Unknown action', a)
 
 
 def make_initial_state():
-    locs = swamp, castle, cave, forge, outside_world = (
-        Loc('swamp', (0, 0)), Loc('castle', (2, 3)), Loc('cave', (8, 1)),
-        Loc('forge', (5, 5)), Loc('outside_world', None))
+    locs = swamp, kingdom, cave, forge, outside = (
+        Loc('swamp', (0, 0)), Loc('kingdom', (2, 3)), Loc('cave', (8, 1)),
+        Loc('forge', (5, 5)), Loc('outside', None))
     actors = knight, king, dragon, wizard = (
-        Actor('knight', cave), Actor('king', castle),
+        Actor('knight', cave), Actor('king', kingdom),
         Actor('dragon', cave), Actor('wizard', forge))
     items = [Item('sword', owner=king), Item('enchantment', owner=wizard),
              Item('scroll', owner=swamp)]
-    agent = Agent("Alice", swamp, None, swamp.coords)
+    agent = Agent('Alice', swamp, None, swamp.coords)
     world = World(actors, items, locs, agent)
     Item.default_owner = world
     return world
@@ -229,18 +265,20 @@ for _ in range(n):
     h = hash(s)
     while True:
         i += 1
-        if i%100 == 0:
+        if i % 100 == 0:
             print(i)
-            print("In state", s.agent.coords, s.agent.loc)
+            print('In state', s.agent.coords, s.agent.loc)
         sleep(sleep_time)
         S.add(h)
         a = (random.choice(A(s))
              if random.random() < ε
              else max(A(s), key=lambda a: Q[h, a]))
-        if i%100==0: print("Taking action", a)
+        if i % 100 == 0:
+            print('Taking action', a)
         sleep(sleep_time)
         r, is_terminal = RT(s, a)
-        if i%100 ==0: print("Received reward", r)
+        if i % 100 == 0:
+            print('Received reward', r)
         sleep(sleep_time)
         h2 = hash(s)
         max_s2 = max(Q[h2, a] for a in A(s))
@@ -248,7 +286,9 @@ for _ in range(n):
         h = h2
         if is_terminal:
             break
-        if i%100 ==0: print()
+        if i % 100 == 0:
+            print()
+
 
 def π(s):
     return max(A(s), lambda a: Q[s, a])
