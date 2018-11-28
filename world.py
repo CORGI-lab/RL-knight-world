@@ -7,6 +7,8 @@ import random
 from collections import defaultdict
 from time import sleep
 
+sleep_time = 0.0
+
 
 class SameHashIsSame(object):
     def __eq__(s1, s2):
@@ -189,6 +191,7 @@ def RT(s, a):
             enchantment.owner = s.agent
         return -1, False
     if a == 'kill dragon':
+        print(f"Attempting to kill dragon with items {s.agent.items.keys()}.")
         if 'enchantment' in s.agent.items and 'sword' in s.agent.items:
             s.actors['dragon'].alive = False
             return 50, True
@@ -205,7 +208,7 @@ def make_initial_state():
     actors = knight, king, dragon, wizard = (
         Actor('knight', cave), Actor('king', castle),
         Actor('dragon', cave), Actor('wizard', forge))
-    items = [Item('sword', owner=knight), Item('enchantment', owner=wizard),
+    items = [Item('sword', owner=king), Item('enchantment', owner=wizard),
              Item('scroll', owner=swamp)]
     agent = Agent("Alice", swamp, None, swamp.coords)
     world = World(actors, items, locs, agent)
@@ -214,33 +217,38 @@ def make_initial_state():
 
 
 # def Q_learning(s0, A, RT, is_terminal, n=100, 𝛼=.2, ε=.05, ɣ=.95):
-n = 100
+n = 200
 𝛼 = .2
 ε = .05
 ɣ = .95
 Q = defaultdict(int)
 S = set()
+i = 0
 for _ in range(n):
     s = make_initial_state()
     h = hash(s)
     while True:
-        print("In state", s.agent.coords, s.agent.loc)
-        sleep(0.1)
+        i += 1
+        if i%100 == 0:
+            print(i)
+            print("In state", s.agent.coords, s.agent.loc)
+        sleep(sleep_time)
         S.add(h)
         a = (random.choice(A(s))
              if random.random() < ε
              else max(A(s), key=lambda a: Q[h, a]))
-        print("Taking action", a)
-        sleep(0.1)
+        if i%100==0: print("Taking action", a)
+        sleep(sleep_time)
         r, is_terminal = RT(s, a)
-        print("Received reward", r)
-        sleep(0.1)
+        if i%100 ==0: print("Received reward", r)
+        sleep(sleep_time)
         h2 = hash(s)
         max_s2 = max(Q[h2, a] for a in A(s))
         Q[h, a] += 𝛼 * (r + ɣ * max_s2 - Q[h, a])
         h = h2
         if is_terminal:
             break
-        print()
-π = {s: max(A(s), lambda a: Q[s, a])
-     for s in S}
+        if i%100 ==0: print()
+
+def π(s):
+    return max(A(s), lambda a: Q[s, a])
