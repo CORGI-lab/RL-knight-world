@@ -8,6 +8,7 @@ from collections import defaultdict
 from time import sleep
 
 sleep_time = 0.0
+print_interval = 10000
 
 
 class SameHashIsSame(object):
@@ -124,10 +125,12 @@ def A(s):
         acts = ['leave']
         blacksmith = s.actors['blacksmith']
         if blacksmith.alive:
-            acts.extend(('kill blacksmith', 'ask for sword'))
+            acts.append('kill blacksmith')
+            if 'sword' in blacksmith.items:
+                acts.append('ask for sword')
             if 'slip' in s.agent.items:
                 acts.append('give blacksmith slip from king')
-        if 'sword' not in s.agent.items:
+        if 'sword' in blacksmith.items:
             acts.append('steal sword')
         return acts
 
@@ -138,7 +141,7 @@ def A(s):
             acts.append('steal amulet')
             if wizard.alive:
                 acts.extend(('ask wizard for amulet',
-                            'demand wizard for amulet'))
+                             'demand wizard for amulet'))
         if wizard.alive:
             acts.append('kill wizard')
         return acts
@@ -264,6 +267,8 @@ def RT(s, a):
             return -1, False
 
     if name == 'tavern':
+        # if a == 'eat pizza':  # NOTE: REMOVE THIS
+        #     return 1000, True  # NOTE: JUST TO TEST Q-LEARNING
         return -1, False  # nothing matters
 
     if name == 'outside':
@@ -308,66 +313,69 @@ def make_initial_state():
     Item.default_owner = world
     return world
 
+
 # def Q_learning(s0, A, RT, is_terminal, n=100, 𝛼=.2, ε=.05, ɣ=.95):
-
-
-def Q_learning():
-    n = 200
-    𝛼 = .2
-    ε = .05
-    ɣ = .95
-    Q = defaultdict(int)
-    S = set()
-    i = 0
-    for _ in range(n):
-        s = make_initial_state()
-        h = hash(s)
-        while True:
-            i += 1
-            if i % 100 == 0:
-                print(i)
-                print('In state', s.agent.coords, s.agent.loc)
-            sleep(sleep_time)
-            S.add(h)
-            a = (random.choice(A(s))
-                 if random.random() < ε
-                 else max(A(s), key=lambda a: Q[h, a]))
-            if i % 100 == 0:
-                print('Taking action', a)
-            sleep(sleep_time)
-            r, is_terminal = RT(s, a)
-            if i % 100 == 0:
-                print('Received reward', r)
-            sleep(sleep_time)
-            h2 = hash(s)
-            max_s2 = max(Q[h2, a] for a in A(s))
-            Q[h, a] += 𝛼 * (r + ɣ * max_s2 - Q[h, a])
-            h = h2
-            if is_terminal:
-                break
-            if i % 100 == 0:
-                print()
-
-    def π(s):
-        return max(A(s), lambda a: Q[s, a])
-    return π
-
-
-s = make_initial_state()
-is_terminal = False
-while not is_terminal:
-    print("In state", s)
-    actions = A(s)
+# def Q_learning():
+n = 10000
+𝛼 = .2
+ε = .05
+ɣ = .95
+Q = defaultdict(int)
+S = set()
+i = 0
+for _ in range(n):
+    s = make_initial_state()
+    h = hash(s)
     while True:
-        print("Choices:")
-        for i, a in enumerate(actions):
-            print(i, ':', a)
-        choice = input("Choose action: ")
-        if choice.isdigit() and 0 <= int(choice) < len(actions):
+        i += 1
+        if i % print_interval == 0:
+            print(i)
+            print('In state', s.agent.coords, s.agent.loc)
+        sleep(sleep_time)
+        S.add(h)
+        a = (random.choice(A(s))
+             if random.random() < ε
+             else max(A(s), key=lambda a: Q[h, a]))
+        if i % print_interval == 0:
+            print('Taking action', a)
+        sleep(sleep_time)
+        r, is_terminal = RT(s, a)
+        if i % print_interval == 0 or r != -1:
+            print(f'Action {a} got reward {r}')
+        sleep(sleep_time)
+        h2 = hash(s)
+        max_s2 = max(Q[h2, a] for a in A(s))
+        Q[h, a] += 𝛼 * (r + ɣ * max_s2 - Q[h, a])
+        h = h2
+        if is_terminal:
             break
-        if choice == 'e':  # for execute
-            code = input("Enter code: ")
-            exec(code)
-    print("Taking action:", actions[int(choice)])
-    reward, is_terminal = RT(s, actions[int(choice)])
-    print("Received reward", reward)
+        if i % print_interval == 0:
+            print()
+
+
+def π(s):
+    return max(A(s), lambda a: Q[s, a])
+
+
+# return π
+
+
+def play_game():
+    s = make_initial_state()
+    is_terminal = False
+    while not is_terminal:
+        print("In state", s)
+        actions = A(s)
+        while True:
+            print("Choices:")
+            for i, a in enumerate(actions):
+                print(i, ':', a)
+            choice = input("Choose action: ")
+            if choice.isdigit() and 0 <= int(choice) < len(actions):
+                break
+            if choice == 'e':  # for execute
+                code = input("Enter code: ")
+                exec(code)
+        print("Taking action:", actions[int(choice)])
+        reward, is_terminal = RT(s, actions[int(choice)])
+        print("Received reward", reward)
