@@ -7,8 +7,12 @@ import random
 from collections import defaultdict
 from time import sleep
 
+from narrative_tree import tree
+
+subtree = tree
+
 sleep_time = 0.0
-print_interval = 10000
+print_interval = 1000000000
 
 
 class SameHashIsSame(object):
@@ -86,7 +90,7 @@ class Loc(SameHashIsSame):
                      tuple(map(hash, self.actors.values()))))
 
     def __repr__(self):
-        return f'Loc {self.name}'
+        return f'{self.name}'
 
 
 class Agent(Actor):
@@ -96,8 +100,13 @@ class Agent(Actor):
 def A(s):
     name = s.agent.loc.name
 
+    acts = ['wait']
+
+    if name != 'outside':
+        acts.append(f'leave {name}')
+
     if name == 'swamp':
-        acts = ['leave', 'enjoy evening']
+        acts.append('enjoy evening')
         if 'dinner' not in s.agent.items:
             acts.append('make dinner')
         if 'scroll' not in s.agent.items:
@@ -105,7 +114,6 @@ def A(s):
         return acts
 
     if name == 'kingdom':
-        acts = ['leave']
         king = s.actors['king']
         if 'slip' in king.items:
             acts.append('ask king for slip')
@@ -119,15 +127,15 @@ def A(s):
         return acts
 
     if name == 'cave':
-        return ['kill dragon', 'talk to dragon', 'leave']
+        acts.extend(['kill dragon', 'talk to dragon'])
+        return acts
 
     if name == 'forge':
-        acts = ['leave']
         blacksmith = s.actors['blacksmith']
         if blacksmith.alive:
             acts.append('kill blacksmith')
             if 'sword' in blacksmith.items:
-                acts.append('ask for sword')
+                acts.append('ask blacksmith for sword')
             if 'slip' in s.agent.items:
                 acts.append('give blacksmith slip from king')
         if 'sword' in blacksmith.items:
@@ -135,7 +143,6 @@ def A(s):
         return acts
 
     if name == 'tower':
-        acts = ['leave']
         wizard = s.actors['wizard']
         if 'amulet' in wizard.items:
             acts.append('steal amulet')
@@ -147,10 +154,10 @@ def A(s):
         return acts
 
     if name == 'tavern':
-        return ['leave', 'eat pizza', 'play pacman']
+        acts.extend(['eat pizza', 'play pacman'])
+        return acts
 
     if name == 'outside':
-        acts = ['wait']
         r, c = s.agent.coords
         if r > 0:
             acts.append('up')
@@ -161,7 +168,7 @@ def A(s):
         if c < s.cols - 1:
             acts.append('right')
         if (r, c) in s.coords_to_loc:
-            acts.append('enter')
+            acts.append(f'go to {s.coords_to_loc[r, c].name}')
         return acts
 
     raise Exception(f'Agent in unknown loc: {s.agent.loc}')
@@ -174,53 +181,67 @@ def transfer(item_name, old, new):
 
 
 def RT(s, a):
-    'Returns reward, is_terminal'
+    """
+    Input: state s, action a
+    Output: reward, is_terminal
+    Side effect: transitions the state
+    """
+    global subtree
     name = s.agent.loc.name
+
+    if a in subtree:
+        reward = 50
+        subtree = subtree[a]
+    else:
+        reward = 0
 
     # some actions are location-independent:
 
-    if a == 'leave':
-        s.agent.loc = s.locs['outside']
-        return -1, False
+    if a == 'wait': # do nothing
+        return reward + -1, False
 
-    if a == 'enter':
+    if a.startswith('leave'):
+        s.agent.loc = s.locs['outside']
+        return reward + -1, False
+
+    if a.startswith('go to'):
         s.agent.loc = s.coords_to_loc[s.agent.coords]
-        return -1, False
+        return reward + -1, False
 
     # most actions depend on location:
 
     if name == 'swamp':
         if a == 'make dinner':
             Item('dinner', s.agent)
-            return -1, False
+            return reward + -1, False
         if a == 'enjoy evening':
             # does nothing
-            return -1, False
+            return reward + -1, False
         if a == 'pick up scroll':
             transfer('scroll', s.locs['swamp'], s.agent)
-            return -1, False
+            return reward + -1, False
 
     if name == 'kingdom':
         king = s.actors['king']
         if a == 'ask king for slip' or a == 'demand king for slip':
             if random.random() > 0.1:
                 transfer('slip', king, s.agent)
-            return -1, False
+            return reward + -1, False
         if a == 'kill king':
             items = s.agent.items
             if 'sword' in items and 'amulet' in items:
                 king.alive = False
-                return -1, False
+                return reward + -1, False
             if 'sword' in items and random.random() < 0.8:
                 king.alive = False
-                return -1, False
-            return -100, True  # you die
+                return reward + -1, False
+            return reward + -100, True  # you die
         if a == 'chat with pleb1':
-            return -1, False
+            return reward + -1, False
         if a == 'kill pleb1':
             pleb1 = s.actors['pleb1']
             pleb1.alive = False
-            return -1, False
+            return reward + -1, False
 
     if name == 'cave':
         if a == 'kill dragon':
@@ -228,31 +249,31 @@ def RT(s, a):
             dragon = s.actors['dragon']
             if 'sword' in items and 'amulet' in items:
                 dragon.alive = False
-                return 1000, True
+                return reward + 1000, True
             if 'sword' in items and random.random() < 0.1:
                 dragon.alive = False
-                return 1000, True
-            return -100, True  # you die
+                return reward + 1000, True
+            return reward + -100, True  # you die
         if a == 'talk to dragon':
-            return -100, True  # you die
+            return reward + -100, True  # you die
 
     if name == 'forge':
         blacksmith = s.actors['blacksmith']
         if a == 'give blacksmith slip from king':
             transfer('slip', s.agent, blacksmith)
-            return -1, False
+            return reward + -1, False
         if a == 'kill blacksmith':
             blacksmith.alive = False
-            return -1, False
+            return reward + -1, False
         if a == 'steal sword':
             # can only steal sword if you kill the blacksmith
             if not blacksmith.alive:
                 transfer('sword', blacksmith, s.agent)
-            return -1, False
-        if a == 'ask for sword':  # yay!
+            return reward + -1, False
+        if a == 'ask blacksmith for sword':  # yay!
             if 'slip' in blacksmith.items:
                 transfer('sword', blacksmith, s.agent)
-            return -1, False
+            return reward + -1, False
 
     if name == 'tower':
         # wizard is less tough, can be stolen from without murder
@@ -261,25 +282,23 @@ def RT(s, a):
                  'demand wizard for amulet',
                  'steal amulet']:
             transfer('amulet', wizard, s.agent)
-            return -1, False
+            return reward + -1, False
         if a == 'kill wizard':
             wizard.alive = False
-            return -1, False
+            return reward + -1, False
 
     if name == 'tavern':
         # if a == 'eat pizza':  # NOTE: REMOVE THIS
-        #     return 1000, True  # NOTE: JUST TO TEST Q-LEARNING
-        return -1, False  # nothing matters
+        #     return reward + 1000, True  # NOTE: JUST TO TEST Q-LEARNING
+        return reward + -1, False  # nothing matters
 
     if name == 'outside':
-        if a == 'wait':
-            return -1, False
         if a in ['up', 'down', 'left', 'right']:
             r, c = s.agent.coords
             dr, dc = {'up': (-1, 0), 'down': (1, 0),
                       'left': (0, -1), 'right': (0, 1)}[a]
             s.agent.coords = (r + dr, c + dc)
-            return -1, False
+            return reward + -1, False
 
     raise Exception(f'Invalid action {a} in state {s}')
 
@@ -316,41 +335,41 @@ def make_initial_state():
 
 # def Q_learning(s0, A, RT, is_terminal, n=100, 𝛼=.2, ε=.05, ɣ=.95):
 # def Q_learning():
-n = 10000
+n = 10000000000 # number of timesteps
 𝛼 = .2
 ε = .05
 ɣ = .95
 Q = defaultdict(int)
 S = set()
 i = 0
+episode = 0
 for _ in range(n):
+    subtree = tree
     s = make_initial_state()
     h = hash(s)
+    print(f"EPISODE {episode}")
     while True:
+        sleep(sleep_time)
         i += 1
         if i % print_interval == 0:
+            print()
             print(i)
-            print('In state', s.agent.coords, s.agent.loc)
-        sleep(sleep_time)
+            print('Coords:', s.agent.coords, 'Loc:', s.agent.loc, 'Hash:', h)
         S.add(h)
         a = (random.choice(A(s))
              if random.random() < ε
              else max(A(s), key=lambda a: Q[h, a]))
-        if i % print_interval == 0:
-            print('Taking action', a)
-        sleep(sleep_time)
         r, is_terminal = RT(s, a)
         if i % print_interval == 0 or r != -1:
-            print(f'Action {a} got reward {r}')
-        sleep(sleep_time)
+            print(f"Took action {a}")
+            print(f"Got reward {r}")
         h2 = hash(s)
         max_s2 = max(Q[h2, a] for a in A(s))
         Q[h, a] += 𝛼 * (r + ɣ * max_s2 - Q[h, a])
         h = h2
         if is_terminal:
             break
-        if i % print_interval == 0:
-            print()
+    episode += 1
 
 
 def π(s):
@@ -364,18 +383,18 @@ def play_game():
     s = make_initial_state()
     is_terminal = False
     while not is_terminal:
-        print("In state", s)
+        print('In state', s)
         actions = A(s)
         while True:
-            print("Choices:")
+            print('Choices:')
             for i, a in enumerate(actions):
                 print(i, ':', a)
-            choice = input("Choose action: ")
+            choice = input('Choose action: ')
             if choice.isdigit() and 0 <= int(choice) < len(actions):
                 break
             if choice == 'e':  # for execute
-                code = input("Enter code: ")
+                code = input('Enter code: ')
                 exec(code)
-        print("Taking action:", actions[int(choice)])
+        print('Taking action:', actions[int(choice)])
         reward, is_terminal = RT(s, actions[int(choice)])
-        print("Received reward", reward)
+        print('Received reward', reward)

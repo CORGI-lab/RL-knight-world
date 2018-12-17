@@ -1,11 +1,11 @@
 tree = {'leave swamp': {
     'go to kingdom': {
-        'get slip from king': {
-            'go to armory': {
-                'give blacksmith slip': {
-                    'get sword from blacksmith': {
+        'ask king for slip': {
+            'go to forge': {
+                'give blacksmith slip from king': {
+                    'ask blacksmith for sword': {
                         'go to tower': {
-                            'get amulet from wizard': {
+                            'ask wizard for amulet': {
                                 'go to cave': {
                                     'kill dragon': {},
                                 },
@@ -16,11 +16,11 @@ tree = {'leave swamp': {
             },
         },
     },
-    'go to armory': {
+    'go to forge': {
         'kill blacksmith': {  # with your hands
             'steal sword': {
                 'go to tower': {
-                    'get amulet from wizard': {
+                    'steal amulet': {
                         'go to cave': {
                             'kill dragon': {},
                         },
@@ -30,11 +30,11 @@ tree = {'leave swamp': {
         },
     },
     'go to tower': {
-        'get amulet from wizard': {
+        'ask wizard for amulet': {
             'go to kingdom': {
-                'get slip from king': {
-                    'go to armory': {
-                        'give blacksmith slip': {
+                'ask king for slip': {
+                    'go to forge': {
+                        'give blacksmith slip from king': {
                             'get sword from blacksmith': {
                                 'go to cave': {
                                     'kill dragon': {},
@@ -44,7 +44,7 @@ tree = {'leave swamp': {
                     },
                 },
             },
-            'go to armory': {
+            'go to forge': {
                 'kill blacksmith': {
                     'steal sword': {
                         'go to cave': {
