@@ -1,8 +1,8 @@
-# Structure:
-# One state is the entire world.
-# The world contains actors, items, and locs, which are all objects.
-# Only the agent can take actions. Actions are strings.
-#  Most actions are deterministic.
+'''
+A markov decision process and a q learning agent
+Luke Harold Miles, December 2018
+'''
+
 import random
 from collections import defaultdict
 from time import sleep
@@ -11,16 +11,21 @@ from narrative_tree import tree
 
 subtree = tree
 
-sleep_time = 0.0
-print_interval = 1000000000
-
 
 class SameHashIsSame(object):
+    '''
+    A class where (extremely rare) hash collisions are ignored, and one item
+    or the other is randomly thrown out in sets
+    '''
     def __eq__(s1, s2):
         return hash(s1) == hash(s2)
 
 
 class World(SameHashIsSame):
+    '''
+    The whole world, including all actors, items, locations, and the agent.
+    Is hashed to create a single state for the MDP.
+    '''
     def __init__(self, actors, items, locs, agent, rows=10, cols=10):
         self.actors = {actor.name: actor for actor in actors}
         self.items = {item.name: item for item in items}
@@ -43,6 +48,9 @@ class World(SameHashIsSame):
 
 
 class Actor(SameHashIsSame):
+    '''
+    A non-agent actor in the world, such as the wizard
+    '''
     def __init__(self, name, loc, items=None, coords=None):
         self.name = name
         self.loc = loc
@@ -63,6 +71,9 @@ class Actor(SameHashIsSame):
 
 
 class Item(SameHashIsSame):
+    '''
+    An item, such as a sword
+    '''
     default_owner = None
 
     def __init__(self, name, owner):
@@ -78,6 +89,9 @@ class Item(SameHashIsSame):
 
 
 class Loc(SameHashIsSame):
+    '''
+    A location, such as the swamp
+    '''
     def __init__(self, name, coords, actors=None, items=None):
         self.name = name
         self.coords = coords
@@ -94,10 +108,17 @@ class Loc(SameHashIsSame):
 
 
 class Agent(Actor):
+    '''
+    The Q-learning agent
+    '''
     pass
 
 
 def A(s):
+    '''
+    Input: a state
+    Output: the set of possible actions
+    '''
     name = s.agent.loc.name
 
     acts = ['wait']
@@ -175,17 +196,21 @@ def A(s):
 
 
 def transfer(item_name, old, new):
+    '''
+    Input: item to transfer, old owner, and new owner
+    Side effect: the item is transferred
+    '''
     item = old.items.pop(item_name)
     new.items[item_name] = item
     item.owner = new
 
 
 def RT(s, a):
-    """
+    '''
     Input: state s, action a
     Output: reward, is_terminal
     Side effect: transitions the state
-    """
+    '''
     global subtree
     name = s.agent.loc.name
 
@@ -304,6 +329,9 @@ def RT(s, a):
 
 
 def make_initial_state():
+    '''
+    Create the starting state for the MDP
+    '''
     locs = swamp, kingdom, cave, forge, tower, tavern, outside = \
         [Loc(name, coords) for name, coords in [
             ['swamp', (0, 0)],
@@ -332,54 +360,10 @@ def make_initial_state():
     Item.default_owner = world
     return world
 
-
-# def Q_learning(s0, A, RT, is_terminal, n=100, 𝛼=.2, ε=.05, ɣ=.95):
-# def Q_learning():
-n = 10000000000 # number of timesteps
-𝛼 = .2
-ε = .05
-ɣ = .95
-Q = defaultdict(int)
-S = set()
-i = 0
-episode = 0
-for _ in range(n):
-    subtree = tree
-    s = make_initial_state()
-    h = hash(s)
-    print(f"EPISODE {episode}")
-    while True:
-        sleep(sleep_time)
-        i += 1
-        if i % print_interval == 0:
-            print()
-            print(i)
-            print('Coords:', s.agent.coords, 'Loc:', s.agent.loc, 'Hash:', h)
-        S.add(h)
-        a = (random.choice(A(s))
-             if random.random() < ε
-             else max(A(s), key=lambda a: Q[h, a]))
-        r, is_terminal = RT(s, a)
-        if i % print_interval == 0 or r != -1:
-            print(f"Took action {a}")
-            print(f"Got reward {r}")
-        h2 = hash(s)
-        max_s2 = max(Q[h2, a] for a in A(s))
-        Q[h, a] += 𝛼 * (r + ɣ * max_s2 - Q[h, a])
-        h = h2
-        if is_terminal:
-            break
-    episode += 1
-
-
-def π(s):
-    return max(A(s), lambda a: Q[s, a])
-
-
-# return π
-
-
 def play_game():
+    '''
+    Interactively take actions and observe rewards
+    '''
     s = make_initial_state()
     is_terminal = False
     while not is_terminal:
@@ -398,3 +382,47 @@ def play_game():
         print('Taking action:', actions[int(choice)])
         reward, is_terminal = RT(s, actions[int(choice)])
         print('Received reward', reward)
+
+if __name__ == '__main__':
+    '''
+    Perform Q learning. Done in the global scope so that variables are
+    easier to inspect and modify.
+    '''
+    sleep_time = 0.0 # how long to wait after each timestep
+    print_interval = 1000000000 # how often to print progress
+    𝛼 = .2 # learning rate
+    ε = .05 # chance of random move
+    ɣ = .95 # discount factor
+    Q = defaultdict(int) # Q-values
+    S = set() # set of seen states
+    i = 0 # timestep
+    n = 10000000000 # max number of timesteps
+    episode = 0 # number of episodes elapsed
+    for _ in range(n):
+        subtree = tree # put us at the start of the story
+        s = make_initial_state()
+        h = hash(s)
+        print(f'EPISODE {episode}')
+        while True:
+            sleep(sleep_time)
+            i += 1
+            S.add(h)
+            a = (random.choice(A(s))
+                 if random.random() < ε
+                 else max(A(s), key=lambda a: Q[h, a]))
+            r, is_terminal = RT(s, a)
+            if i % print_interval == 0 or r != -1:
+                print('Timestep:', i)
+                print('Action:', a)
+                print('Reward:', r)
+                print('Location:', s.agent.loc)
+                print('Coordinates:', s.agent.coords)
+                print('Hash:', h)
+            h2 = hash(s)
+            max_s2 = max(Q[h2, a] for a in A(s))
+            Q[h, a] += 𝛼 * (r + ɣ * max_s2 - Q[h, a])
+            h = h2
+            if is_terminal:
+                break
+        episode += 1
+
