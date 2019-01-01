@@ -7,9 +7,9 @@ import random
 from collections import defaultdict
 from time import sleep
 
-from narrative_tree import tree
+import narrative_tree
 
-subtree = tree
+subtree = narrative_tree.tree
 
 
 class SameHashIsSame(object):
@@ -215,7 +215,7 @@ def RT(s, a):
     name = s.agent.loc.name
 
     if a in subtree:
-        reward = 50
+        reward = 50 * (narrative_tree.scores[a] - 0.5)
         subtree = subtree[a]
     else:
         reward = 0
@@ -399,7 +399,7 @@ if __name__ == '__main__':
     n = 10000000000 # max number of timesteps
     episode = 0 # number of episodes elapsed
     for _ in range(n):
-        subtree = tree # put us at the start of the story
+        subtree = narrative_tree.tree # put us at the start of the story
         s = make_initial_state()
         h = hash(s)
         print(f'EPISODE {episode}')
