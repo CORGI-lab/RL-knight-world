@@ -12,16 +12,7 @@ import narrative_tree
 subtree = narrative_tree.tree
 
 
-class SameHashIsSame(object):
-    '''
-    A class where (extremely rare) hash collisions are ignored, and one item
-    or the other is randomly thrown out in sets
-    '''
-    def __eq__(s1, s2):
-        return hash(s1) == hash(s2)
-
-
-class World(SameHashIsSame):
+class World():
     '''
     The whole world, including all actors, items, locations, and the agent.
     Is hashed to create a single state for the MDP.
@@ -39,13 +30,10 @@ class World(SameHashIsSame):
         return f'{self.rows} x {self.cols} world'
 
     def __hash__(self):
-        return hash(((hash(self.agent),
-                      tuple(map(hash, self.actors.values())),
-                      tuple(map(hash, self.items.values())),
-                      tuple(map(hash, self.locs.values())))))
+        return hash((self.agent, tuple(self.actors.values())))
 
 
-class Actor(SameHashIsSame):
+class Actor():
     '''
     A non-agent actor in the world, such as the wizard
     '''
@@ -65,7 +53,7 @@ class Actor(SameHashIsSame):
                      tuple(self.items.keys())))
 
 
-class Item(SameHashIsSame):
+class Item():
     '''
     An item, such as a sword
     '''
@@ -76,14 +64,11 @@ class Item(SameHashIsSame):
         self.owner = owner
         owner.items[name] = self
 
-    def __hash__(self):
-        return hash((self.name, self.owner.name))
-
     def __repr__(self):
         return f'Item {self.name}'
 
 
-class Loc(SameHashIsSame):
+class Loc():
     '''
     A location, such as the swamp
     '''
@@ -92,9 +77,6 @@ class Loc(SameHashIsSame):
         self.coords = coords
         self.actors = actors or dict()
         self.items = items or dict()
-
-    def __hash__(self):
-        return hash((self.name, self.coords))
 
     def __repr__(self):
         return f'{self.name}'
@@ -253,7 +235,7 @@ def RT(s, a):
             if 'sword' in items and random.random() < 0.8:
                 king.alive = False
                 return reward + -1, False
-            return reward + -100, True  # you die
+            return reward + -10, True  # you die
         if a == 'chat with pleb1':
             return reward + -1, False
         if a == 'kill pleb1':
@@ -267,13 +249,13 @@ def RT(s, a):
             dragon = s.actors['dragon']
             if 'sword' in items and 'amulet' in items:
                 dragon.alive = False
-                return reward + 1000, True
-            if 'sword' in items and random.random() < 0.1:
-                dragon.alive = False
-                return reward + 1000, True
-            return reward + -100, True  # you die
+                return reward + 100, True
+            #if 'sword' in items and random.random() < 0.1:
+            #    dragon.alive = False
+            #    return reward + 100, True
+            return reward + -10, True  # you die
         if a == 'talk to dragon':
-            return reward + -100, True  # you die
+            return reward + -10, True  # you die
 
     if name == 'forge':
         blacksmith = s.actors['blacksmith']
@@ -307,7 +289,7 @@ def RT(s, a):
 
     if name == 'tavern':
         # if a == 'eat pizza':  # NOTE: REMOVE THIS
-        #     return reward + 1000, True  # NOTE: JUST TO TEST Q-LEARNING
+        #     return reward + 100, True  # NOTE: JUST TO TEST Q-LEARNING
         return reward + -1, False  # nothing matters
 
     if name == 'outside':
@@ -384,43 +366,44 @@ if __name__ == '__main__':
     '''
     Perform Q learning. Done in the global scope so that variables are
     easier to inspect and modify.
+    a: action
+    r: reward
+    s: state
     '''
-    sleep_time = 0.0 # how long to wait after each timestep
-    print_interval = 1000000000 # how often to print progress
-    𝛼 = .2 # learning rate
-    ε = .05 # chance of random move
-    ɣ = .95 # discount factor
     Q = defaultdict(int) # Q-values
-    S = set() # set of seen states
-    i = 0 # timestep
-    n = 10000000000 # max number of timesteps
-    episode = 0 # number of episodes elapsed
-    for _ in range(n):
+    total_time = 0
+    debug = True
+    num_episodes = 100001
+    learning_rate = .0 if debug else .2
+    chance_of_random_move = .0 if debug else .05
+    discount_factor = .99
+    for episode in range(num_episodes):
         subtree = narrative_tree.tree # put us at the start of the story
+        timestep = 0
         s = make_initial_state()
         h = hash(s)
-        print(f'EPISODE {episode}')
+        if debug or episode % 100 == 0:
+            print(f'EPISODE {episode}')
         while True:
-            sleep(sleep_time)
-            i += 1
-            S.add(h)
+            if debug: sleep(1.5)
+            timestep += 1
+            total_time += 1
             a = (random.choice(A(s))
-                 if random.random() < ε
+                 if random.random() < chance_of_random_move
                  else max(A(s), key=lambda a: Q[h, a]))
             r, is_terminal = RT(s, a)
-            if i % print_interval == 0 or r != -1:
+            h2 = hash(s)
+            if debug:
                 print()
-                print('Timestep:', i)
+                print('Timestep:', timestep)
                 print('Action:', a)
                 print('Reward:', r)
                 print('Location:', s.agent.loc)
                 print('Coordinates:', s.agent.coords)
-                print('Hash:', h)
-            h2 = hash(s)
+                print('Hash:', h2)
             max_s2 = max(Q[h2, a] for a in A(s))
-            Q[h, a] += 𝛼 * (r + ɣ * max_s2 - Q[h, a])
+            Q[h, a] += learning_rate * (r + discount_factor * max_s2 - Q[h, a])
             h = h2
             if is_terminal:
                 break
-        episode += 1
 
