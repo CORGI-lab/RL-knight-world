@@ -39,9 +39,7 @@ class World(SameHashIsSame):
         return f'{self.rows} x {self.cols} world'
 
     def __hash__(self):
-        return hash(((self.rows,
-                      self.cols,
-                      hash(self.agent),
+        return hash(((hash(self.agent),
                       tuple(map(hash, self.actors.values())),
                       tuple(map(hash, self.items.values())),
                       tuple(map(hash, self.locs.values())))))
@@ -63,11 +61,8 @@ class Actor(SameHashIsSame):
         return f'Actor {self.name}'
 
     def __hash__(self):
-        return hash((self.name,
-                     self.loc.name,
-                     tuple(i.name for i in self.items.values()),
-                     self.coords,
-                     self.alive))
+        return hash((self.name, self.loc.name, self.coords, self.alive,
+                     tuple(self.items.keys())))
 
 
 class Item(SameHashIsSame):
@@ -99,9 +94,7 @@ class Loc(SameHashIsSame):
         self.items = items or dict()
 
     def __hash__(self):
-        return hash((self.name,
-                     self.coords,
-                     tuple(map(hash, self.actors.values()))))
+        return hash((self.name, self.coords))
 
     def __repr__(self):
         return f'{self.name}'
@@ -360,6 +353,7 @@ def make_initial_state():
     Item.default_owner = world
     return world
 
+#if __name__ == '__main__':
 def play_game():
     '''
     Interactively take actions and observe rewards
@@ -367,6 +361,7 @@ def play_game():
     s = make_initial_state()
     is_terminal = False
     while not is_terminal:
+        print()
         print('In state', s)
         actions = A(s)
         while True:
@@ -382,7 +377,9 @@ def play_game():
         print('Taking action:', actions[int(choice)])
         reward, is_terminal = RT(s, actions[int(choice)])
         print('Received reward', reward)
+        print('Current hash is', hash(s))
 
+#def q_learning():
 if __name__ == '__main__':
     '''
     Perform Q learning. Done in the global scope so that variables are
@@ -412,6 +409,7 @@ if __name__ == '__main__':
                  else max(A(s), key=lambda a: Q[h, a]))
             r, is_terminal = RT(s, a)
             if i % print_interval == 0 or r != -1:
+                print()
                 print('Timestep:', i)
                 print('Action:', a)
                 print('Reward:', r)
