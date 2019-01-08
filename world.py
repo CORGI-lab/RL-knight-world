@@ -84,7 +84,7 @@ class Item():
         return f'Item {self.name}'
 
     def __hash__(self):
-        return hash((self.name, self.owner))
+        return hash((self.name, self.owner.name))
 
 
 class Loc():
