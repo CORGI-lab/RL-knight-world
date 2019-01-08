@@ -1,7 +1,7 @@
-'''
+"""
 A markov decision process and a q learning agent
-Luke Harold Miles, December 2018
-'''
+Luke Harold Miles, January 2019
+"""
 
 import random
 from collections import defaultdict
@@ -13,87 +13,98 @@ subtree = narrative_tree.tree
 
 
 class World():
-    '''
+    """
     The whole world, including all actors, items, locations, and the agent.
     Is hashed to create a single state for the MDP.
-    '''
-    def __init__(self, actors, items, locs, agent, rows=10, cols=10):
-        self.actors = {actor.name: actor for actor in actors}
-        self.items = {item.name: item for item in items}
-        self.locs = {loc.name: loc for loc in locs}
-        self.coords_to_loc = {loc.coords: loc for loc in locs}
-        self.agent = agent
+    """
+    def __init__(self, rows, cols):
         self.rows = rows
         self.cols = cols
+        self.actors = dict()
+        self.locs = dict()
+        self.items = dict()
+        self.coords_to_loc = dict()
+        self.agent = None
 
     def __repr__(self):
         return f'{self.rows} x {self.cols} world'
 
     def __hash__(self):
-        return hash((self.agent, tuple(self.actors.values())))
+        return hash((self.agent,
+                    tuple(self.actors.values()),
+                    tuple(self.items.values())))
+
+
+class Agent():
+    """
+    The agent in the environment
+    """
+    def __init__(self, world, loc, coords):
+        world.agent = self
+        self.name = 'Agent'
+        self.loc = loc
+        self.coords = coords
+        self.alive = True
+
+    def __repr__(self):
+        return f'The agent'
+
+    def __hash__(self):
+        return hash((self.loc.name, self.coords, self.alive))
 
 
 class Actor():
-    '''
+    """
     A non-agent actor in the world, such as the wizard
-    '''
-    def __init__(self, name, loc, items=None, coords=None):
+    """
+    def __init__(self, world, name, loc):
+        world.actors[name] = self
         self.name = name
         self.loc = loc
-        loc.actors[name] = self
-        self.items = items or dict()
-        self.coords = coords
         self.alive = True
 
     def __repr__(self):
         return f'Actor {self.name}'
 
     def __hash__(self):
-        return hash((self.name, self.loc.name, self.coords, self.alive,
-                     tuple(self.items.keys())))
+        return hash((self.name, self.alive))
 
 
 class Item():
-    '''
+    """
     An item, such as a sword
-    '''
-    default_owner = None
+    """
 
-    def __init__(self, name, owner):
+    def __init__(self, world, name, owner):
+        world.items[name] = self
         self.name = name
         self.owner = owner
-        owner.items[name] = self
 
     def __repr__(self):
         return f'Item {self.name}'
 
+    def __hash__(self):
+        return hash((self.name, self.owner))
+
 
 class Loc():
-    '''
+    """
     A location, such as the swamp
-    '''
-    def __init__(self, name, coords, actors=None, items=None):
+    """
+    def __init__(self, world, name, coords=None):
+        world.locs[name] = self
+        world.coords_to_loc[coords] = self
         self.name = name
         self.coords = coords
-        self.actors = actors or dict()
-        self.items = items or dict()
 
     def __repr__(self):
         return f'{self.name}'
 
-
-class Agent(Actor):
-    '''
-    The Q-learning agent
-    '''
-    pass
-
-
 def A(s):
-    '''
+    """
     Input: a state
     Output: the set of possible actions
-    '''
+    """
     name = s.agent.loc.name
 
     acts = ['wait']
@@ -103,15 +114,15 @@ def A(s):
 
     if name == 'swamp':
         acts.append('enjoy evening')
-        if 'dinner' not in s.agent.items:
+        if s.items['dinner'].owner is s.locs['swamp']:
             acts.append('make dinner')
-        if 'scroll' not in s.agent.items:
+        if s.items['scroll'].owner is s.locs['swamp']:
             acts.append('pick up scroll')
         return acts
 
     if name == 'kingdom':
         king = s.actors['king']
-        if 'slip' in king.items:
+        if s.items['slip'].owner is king:
             acts.append('ask king for slip')
             acts.append('demand king for slip')
         if king.alive:
@@ -130,17 +141,17 @@ def A(s):
         blacksmith = s.actors['blacksmith']
         if blacksmith.alive:
             acts.append('kill blacksmith')
-            if 'sword' in blacksmith.items:
+            if s.items['sword'].owner is blacksmith:
                 acts.append('ask blacksmith for sword')
-            if 'slip' in s.agent.items:
+            if s.items['slip'].owner is s.agent:
                 acts.append('give blacksmith slip from king')
-        if 'sword' in blacksmith.items:
+        if s.items['sword'].owner is blacksmith:
             acts.append('steal sword')
         return acts
 
     if name == 'tower':
         wizard = s.actors['wizard']
-        if 'amulet' in wizard.items:
+        if s.items['amulet'].owner is wizard:
             acts.append('steal amulet')
             if wizard.alive:
                 acts.extend(('ask wizard for amulet',
@@ -170,22 +181,12 @@ def A(s):
     raise Exception(f'Agent in unknown loc: {s.agent.loc}')
 
 
-def transfer(item_name, old, new):
-    '''
-    Input: item to transfer, old owner, and new owner
-    Side effect: the item is transferred
-    '''
-    item = old.items.pop(item_name)
-    new.items[item_name] = item
-    item.owner = new
-
-
 def RT(s, a):
-    '''
+    """
     Input: state s, action a
     Output: reward, is_terminal
     Side effect: transitions the state
-    '''
+    """
     global subtree
     name = s.agent.loc.name
 
@@ -212,27 +213,26 @@ def RT(s, a):
 
     if name == 'swamp':
         if a == 'make dinner':
-            Item('dinner', s.agent)
+            s.items['dinner'].owner = s.agent
             return reward + -1, False
         if a == 'enjoy evening':
             # does nothing
             return reward + -1, False
         if a == 'pick up scroll':
-            transfer('scroll', s.locs['swamp'], s.agent)
+            s.items['scroll'].owner = s.agent
             return reward + -1, False
 
     if name == 'kingdom':
         king = s.actors['king']
         if a == 'ask king for slip' or a == 'demand king for slip':
             if random.random() > 0.1:
-                transfer('slip', king, s.agent)
+                s.items['slip'].owner = s.agent
             return reward + -1, False
         if a == 'kill king':
-            items = s.agent.items
-            if 'sword' in items and 'amulet' in items:
+            if s.items['sword'].owner == s.items['amulet'].owner == s.agent:
                 king.alive = False
                 return reward + -1, False
-            if 'sword' in items and random.random() < 0.8:
+            if s.items['sword'].owner is s.agent and random.random() < 0.8:
                 king.alive = False
                 return reward + -1, False
             return reward + -10, True  # you die
@@ -245,9 +245,8 @@ def RT(s, a):
 
     if name == 'cave':
         if a == 'kill dragon':
-            items = s.agent.items
             dragon = s.actors['dragon']
-            if 'sword' in items and 'amulet' in items:
+            if s.items['sword'].owner == s.items['amulet'].owner == s.agent:
                 dragon.alive = False
                 return reward + 100, True
             #if 'sword' in items and random.random() < 0.1:
@@ -260,7 +259,7 @@ def RT(s, a):
     if name == 'forge':
         blacksmith = s.actors['blacksmith']
         if a == 'give blacksmith slip from king':
-            transfer('slip', s.agent, blacksmith)
+            s.items['slip'].owner = blacksmith
             return reward + -1, False
         if a == 'kill blacksmith':
             blacksmith.alive = False
@@ -268,11 +267,11 @@ def RT(s, a):
         if a == 'steal sword':
             # can only steal sword if you kill the blacksmith
             if not blacksmith.alive:
-                transfer('sword', blacksmith, s.agent)
+                s.items['sword'].owner = s.agent
             return reward + -1, False
         if a == 'ask blacksmith for sword':  # yay!
-            if 'slip' in blacksmith.items:
-                transfer('sword', blacksmith, s.agent)
+            if s.items['slip'].owner == blacksmith:
+                s.items['sword'].owner = s.agent
             return reward + -1, False
 
     if name == 'tower':
@@ -281,15 +280,16 @@ def RT(s, a):
         if a in ['ask wizard for amulet',
                  'demand wizard for amulet',
                  'steal amulet']:
-            transfer('amulet', wizard, s.agent)
+            s.items['amulet'].owner = s.agent
             return reward + -1, False
         if a == 'kill wizard':
             wizard.alive = False
             return reward + -1, False
 
     if name == 'tavern':
-        # if a == 'eat pizza':  # NOTE: REMOVE THIS
-        #     return reward + 100, True  # NOTE: JUST TO TEST Q-LEARNING
+        # A very simple goal to test Q-learning:
+        # if a == 'eat pizza':
+        #     return reward + 100, True
         return reward + -1, False  # nothing matters
 
     if name == 'outside':
@@ -304,11 +304,12 @@ def RT(s, a):
 
 
 def make_initial_state():
-    '''
+    """
     Create the starting state for the MDP
-    '''
-    locs = swamp, kingdom, cave, forge, tower, tavern, outside = \
-        [Loc(name, coords) for name, coords in [
+    """
+    world = World(10, 10)
+    swamp, kingdom, cave, forge, tower, _, _ = \
+        [Loc(world, name, coords) for name, coords in [
             ['swamp', (0, 0)],
             ['kingdom', (2, 3)],
             ['cave', (8, 1)],
@@ -316,30 +317,29 @@ def make_initial_state():
             ['tower', (1, 2)],
             ['tavern', (1, 1)],
             ['outside', None]]]
-    actors = king, _, __, blacksmith, wizard = \
-        [Actor(name, loc) for name, loc in [
+    actors = king, _, _, blacksmith, wizard = \
+        [Actor(world, name, loc) for name, loc in [
             ['king', kingdom],
             ['pleb1', kingdom],
             ['dragon', cave],
             ['blacksmith', forge],
-            ['wizard', tower],
-        ]]
+            ['wizard', tower]]]
     items = \
-        [Item(name, owner=owner) for name, owner in [
+        [Item(world, name, owner) for name, owner in [
             ['scroll', swamp],
             ['slip', king],
+            ['dinner', swamp],
             ['sword', blacksmith],
             ['amulet', wizard]]]
-    agent = Agent('Alice', swamp, None, swamp.coords)
-    world = World(actors, items, locs, agent)
-    Item.default_owner = world
+    Agent(world, swamp, swamp.coords)
     return world
+
 
 #if __name__ == '__main__':
 def play_game():
-    '''
+    """
     Interactively take actions and observe rewards
-    '''
+    """
     s = make_initial_state()
     is_terminal = False
     while not is_terminal:
@@ -363,16 +363,15 @@ def play_game():
 
 #def q_learning():
 if __name__ == '__main__':
-    '''
-    Perform Q learning. Done in the global scope so that variables are
-    easier to inspect and modify.
+    """
+    Perform Q learning.
     a: action
     r: reward
     s: state
-    '''
+    """
     Q = defaultdict(int) # Q-values
     total_time = 0
-    debug = True
+    debug = False
     num_episodes = 100001
     learning_rate = .0 if debug else .2
     chance_of_random_move = .0 if debug else .05
