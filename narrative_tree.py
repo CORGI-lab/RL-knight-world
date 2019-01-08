@@ -29,7 +29,7 @@ tree = {
                 'ask king for slip': {
                     'go to forge': {
                         'give blacksmith slip from king': {
-                            'get sword from blacksmith': {
+                            'ask blacksmith for sword': {
                                 'go to cave': {
                                     'kill dragon': {}}}}}}}},
        'steal amulet': {
@@ -50,7 +50,6 @@ scores = {
  'ask wizard for amulet': 0.5262374,
  'go to kingdom': 0.5286611,
  'leave swamp': 0.41815662,
- 'get sword from blacksmith': 0.48302805,
  'kill dragon': 0.3663328,
  'ask king for slip': 0.5143399,
  'give blacksmith slip from king': 0.5256291,
