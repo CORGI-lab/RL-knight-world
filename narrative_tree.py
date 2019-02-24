@@ -1,56 +1,12 @@
-tree = {
-'leave swamp': {
-    'go to kingdom': {
-        'ask king for slip': {
-            'go to forge': {
-                'give blacksmith slip from king': {
-                    'ask blacksmith for sword': {
-                        'go to tower': {
-                            'ask wizard for amulet': {
-                                'go to cave': {
-                                    'kill dragon': {}}}}}}},
-            'go to tower': {
-                'ask wizard for amulet': {
-                    'go to forge': {
-                        'give blacksmith slip from king': {
-                            'ask blacksmith for sword': {
-                                'go to cave': {
-                                    'kill dragon': {}}}}}}}}},
-    'go to forge': {
-        'kill blacksmith': {
-            'steal sword': {
-                'go to tower': {
-                    'steal amulet': {
-                        'go to cave': {
-                            'kill dragon': {}}}}}}},
-    'go to tower': {
-        'ask wizard for amulet': {
-            'go to kingdom': {
-                'ask king for slip': {
-                    'go to forge': {
-                        'give blacksmith slip from king': {
-                            'ask blacksmith for sword': {
-                                'go to cave': {
-                                    'kill dragon': {}}}}}}}},
-       'steal amulet': {
-           'go to forge': {
-               'kill blacksmith': {
-                   'steal sword': {
-                       'go to cave': {
-                           'kill dragon': {}}}}}}}}}
-
-scores = {
- 'steal sword': 0.4273727,
- 'kill blacksmith': 0.4383431,
- 'steal amulet': 0.4772043,
- 'go to cave': 0.45955008,
- 'go to forge': 0.49036837,
- 'ask blacksmith for sword': 0.49806365,
- 'go to tower': 0.45170587,
- 'ask wizard for amulet': 0.5262374,
- 'go to kingdom': 0.5286611,
- 'leave swamp': 0.41815662,
- 'kill dragon': 0.3663328,
- 'ask king for slip': 0.5143399,
- 'give blacksmith slip from king': 0.5256291,
- }
+Tree = [
+    [("leave swamp", 0.42769954), ("go to cave ", 0.5131546),
+     ("talk to dragon", 0.36864433), ("invite dragon to follow", 0.38491932),
+     ("go to tavern ", 0.5497924), ("buy pizza", 0.35774916),
+     ("give pizza to dragon", 0.38854453), ("go to cave", 0.5131546),
+     ("drop dragon off", 0.2504213), ("invite princess to follow", 0.5502924),
+     ("go to kingdom", 0.57093), ("drop princess off", 0.2504213)],
+    [("leave swamp", 0.42769954), ("go to blacksmith", 0.5115639),
+     ("steal sword", 0.3624117), ("go to cave", 0.5131546),
+     ("kill dragon", 0.34857363), ("go to kingdom", 0.57093),
+     ("drop princess off", 0.3138209)],
+]

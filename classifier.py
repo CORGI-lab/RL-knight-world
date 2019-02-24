@@ -5,8 +5,9 @@ import matplotlib.pyplot as plt
 import nltk
 import numpy as np
 from tensorflow import keras
+from tensorflow import errors as tf_errors
 
-from narrative_tree import tree
+#from narrative_tree import tree
 
 word2vec = gensim.downloader.load("glove-twitter-25")
 
@@ -104,24 +105,44 @@ def make_lstm():
 
 x, y = get_x_y()
 
-run_experiment(make_lstm, x, y, epochs=50, batch_size=50, k=5)
+#run_experiment(make_lstm, x, y, epochs=50, batch_size=50, k=5)
 
 # Train one model on all data for predictions on the plot events
 model = make_lstm()
 model.fit(x, y, batch_size=50, epochs=35)
 
 def to_matrix(sentence):
-    return np.array([[word2vec.get_vector(t) for t in nltk.word_tokenize(sentence)]])
+    vectors = []
+    for t in nltk.word_tokenize(sentence.lower()):
+        try:
+            vectors.append(word2vec.get_vector(t))
+        except KeyError:
+            continue # just skip unknown words
+    return np.array([vectors])
 
-event_scores = dict()
-def get_event_scores(tree):
-    for event in tree:
-        if event in event_scores:
-            continue
-        x = to_matrix(event)
-        event_scores[event] = model.predict_proba(x)[0,0]
-    for subtree in tree.values():
-        get_event_scores(subtree)
-get_event_scores(tree)
-print("Event scores:")
-print(event_scores)
+def repl():
+    while True:
+        sentence = input("Enter sentence: ")
+        m = to_matrix(sentence)
+        try:
+            p = model.predict(m)[0, 0]
+            print("That is %.1f%% gallant, or %.1f%% percent goofus" % (100*p, 100 - 100*p))
+        except tf_errors.InvalidArgumentError:
+            print("Model failure")
+
+#
+#event_scores = dict()
+#def get_event_scores(tree):
+#    for event in tree:
+#        if event in event_scores:
+#            continue
+#        x = to_matrix(event)
+#        event_scores[event] = model.predict_proba(x)[0,0]
+#    for subtree in tree.values():
+#        get_event_scores(subtree)
+#get_event_scores(tree)
+#print("Event scores:")
+#print(event_scores)
+
+
+# M = keras.preprocessing.sequence.pad_sequences([[word2vec.get_vector(t) for t in nltk.word_tokenize(event)] for event in events], maxlen=27, dtype='float32')
