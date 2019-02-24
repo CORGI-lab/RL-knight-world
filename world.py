@@ -17,6 +17,7 @@ class World():
     The whole world, including all actors, items, locations, and the agent.
     Is hashed to create a single state for the MDP.
     """
+
     def __init__(self, rows, cols):
         self.rows = rows
         self.cols = cols
@@ -30,15 +31,15 @@ class World():
         return f'{self.rows} x {self.cols} world'
 
     def __hash__(self):
-        return hash((self.agent,
-                    tuple(self.actors.values()),
-                    tuple(self.items.values())))
+        return hash((self.agent, tuple(self.actors.values()),
+                     tuple(self.items.values())))
 
 
 class Agent():
     """
     The agent in the environment
     """
+
     def __init__(self, world, loc, coords):
         world.agent = self
         self.name = 'Agent'
@@ -57,6 +58,7 @@ class Actor():
     """
     A non-agent actor in the world, such as the wizard
     """
+
     def __init__(self, world, name, loc):
         world.actors[name] = self
         self.name = name
@@ -91,6 +93,7 @@ class Loc():
     """
     A location, such as the swamp
     """
+
     def __init__(self, world, name, coords=None):
         world.locs[name] = self
         world.coords_to_loc[coords] = self
@@ -99,6 +102,7 @@ class Loc():
 
     def __repr__(self):
         return f'{self.name}'
+
 
 def A(s):
     """
@@ -198,7 +202,7 @@ def RT(s, a):
 
     # some actions are location-independent:
 
-    if a == 'wait': # do nothing
+    if a == 'wait':  # do nothing
         return reward + -1, False
 
     if a.startswith('leave'):
@@ -277,9 +281,10 @@ def RT(s, a):
     if name == 'tower':
         # wizard is less tough, can be stolen from without murder
         wizard = s.actors['wizard']
-        if a in ['ask wizard for amulet',
-                 'demand wizard for amulet',
-                 'steal amulet']:
+        if a in [
+                'ask wizard for amulet', 'demand wizard for amulet',
+                'steal amulet'
+        ]:
             s.items['amulet'].owner = s.agent
             return reward + -1, False
         if a == 'kill wizard':
@@ -295,8 +300,12 @@ def RT(s, a):
     if name == 'outside':
         if a in ['up', 'down', 'left', 'right']:
             r, c = s.agent.coords
-            dr, dc = {'up': (-1, 0), 'down': (1, 0),
-                      'left': (0, -1), 'right': (0, 1)}[a]
+            dr, dc = {
+                'up': (-1, 0),
+                'down': (1, 0),
+                'left': (0, -1),
+                'right': (0, 1)
+            }[a]
             s.agent.coords = (r + dr, c + dc)
             return reward + -1, False
 
@@ -361,6 +370,7 @@ def play_game():
         print('Received reward', reward)
         print('Current hash is', hash(s))
 
+
 #def q_learning():
 if __name__ == '__main__':
     """
@@ -369,7 +379,7 @@ if __name__ == '__main__':
     r: reward
     s: state
     """
-    Q = defaultdict(int) # Q-values
+    Q = defaultdict(int)  # Q-values
     total_time = 0
     debug = False
     num_episodes = 100001
@@ -377,7 +387,7 @@ if __name__ == '__main__':
     chance_of_random_move = .0 if debug else .05
     discount_factor = .99
     for episode in range(num_episodes):
-        subtree = narrative_tree.tree # put us at the start of the story
+        subtree = narrative_tree.tree  # put us at the start of the story
         timestep = 0
         s = make_initial_state()
         h = hash(s)
@@ -387,8 +397,7 @@ if __name__ == '__main__':
             if debug: sleep(1.5)
             timestep += 1
             total_time += 1
-            a = (random.choice(A(s))
-                 if random.random() < chance_of_random_move
+            a = (random.choice(A(s)) if random.random() < chance_of_random_move
                  else max(A(s), key=lambda a: Q[h, a]))
             r, is_terminal = RT(s, a)
             h2 = hash(s)
@@ -405,4 +414,3 @@ if __name__ == '__main__':
             h = h2
             if is_terminal:
                 break
-
